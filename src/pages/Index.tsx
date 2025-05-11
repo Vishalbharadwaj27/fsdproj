@@ -4,10 +4,12 @@ import KanbanBoard from "@/components/KanbanBoard";
 import Header from "@/components/Header";
 import ActivityLog from "@/components/ActivityLog";
 import CreateTaskForm from "@/components/CreateTaskForm";
-import { project, currentUser } from "@/lib/data";
+import { project } from "@/lib/data";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -21,7 +23,7 @@ const Index = () => {
           </div>
           <div className="text-sm">
             <span className="text-gray-500">
-              Project Owner: <span className="font-semibold text-gray-800">{currentUser.name}</span>
+              Project Owner: <span className="font-semibold text-gray-800">{user?.name}</span>
             </span>
           </div>
         </div>

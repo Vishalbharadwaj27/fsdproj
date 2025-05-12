@@ -1,77 +1,127 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Task } from "@/lib/types";
-import { getTasksByStatus, moveTask } from "@/lib/data";
+import { taskService } from "@/services/api";
 import TaskCard from "./TaskCard";
 import CreateTaskForm from "./CreateTaskForm";
 import EditTaskForm from "./EditTaskForm";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function KanbanBoard() {
-  const [todoTasks, setTodoTasks] = useState<Task[]>(getTasksByStatus("todo"));
-  const [inProgressTasks, setInProgressTasks] = useState<Task[]>(getTasksByStatus("inProgress"));
-  const [doneTasks, setDoneTasks] = useState<Task[]>(getTasksByStatus("done"));
+  const [todoTasks, setTodoTasks] = useState<Task[]>([]);
+  const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
+  const [doneTasks, setDoneTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [createForColumn, setCreateForColumn] = useState<"todo" | "inProgress" | "done">("todo");
+  
+  const { user } = useAuth();
+
+  // Fetch tasks on component mount
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  // Fetch all tasks from MongoDB
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const [todoData, inProgressData, doneData] = await Promise.all([
+        taskService.getTasksByStatus("todo"),
+        taskService.getTasksByStatus("inProgress"),
+        taskService.getTasksByStatus("done")
+      ]);
+      
+      setTodoTasks(todoData);
+      setInProgressTasks(inProgressData);
+      setDoneTasks(doneData);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      toast.error("Failed to load tasks. Please refresh the page.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Handle creating a new task
-  const handleCreateTask = (task: Omit<Task, "id" | "createdAt" | "comments">) => {
-    const newTask: Task = {
-      ...task,
-      id: `t${Math.floor(Math.random() * 10000)}`,
-      createdAt: new Date(),
-      comments: [],
-    };
-    
-    // Update the state based on the status
-    if (task.status === "todo") {
-      setTodoTasks([...todoTasks, newTask]);
-    } else if (task.status === "inProgress") {
-      setInProgressTasks([...inProgressTasks, newTask]);
-    } else if (task.status === "done") {
-      setDoneTasks([...doneTasks, newTask]);
+  const handleCreateTask = async (task: Omit<Task, "id" | "createdAt" | "comments">) => {
+    try {
+      // Ensure task has the current user's ID
+      const taskWithUser = {
+        ...task,
+        createdBy: user?.id || "1" // Fallback to default user if not authenticated
+      };
+      
+      const newTask = await taskService.createTask(taskWithUser);
+      
+      // Update the state based on the status
+      if (newTask.status === "todo") {
+        setTodoTasks([...todoTasks, newTask]);
+      } else if (newTask.status === "inProgress") {
+        setInProgressTasks([...inProgressTasks, newTask]);
+      } else if (newTask.status === "done") {
+        setDoneTasks([...doneTasks, newTask]);
+      }
+      
+      toast.success("Task created successfully");
+    } catch (error) {
+      console.error("Error creating task:", error);
+      // Error is handled in the service
     }
-    
-    toast.success("Task created successfully");
   };
 
   // Handle editing a task
-  const handleEditTask = (updatedTask: Task) => {
-    // Remove the task from its current column
-    if (updatedTask.status === "todo") {
-      setTodoTasks(todoTasks.map(task => 
-        task.id === updatedTask.id ? updatedTask : task
-      ));
-      setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
-      setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
-    } else if (updatedTask.status === "inProgress") {
-      setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
-      setInProgressTasks(inProgressTasks.map(task => 
-        task.id === updatedTask.id ? updatedTask : task
-      ));
-      setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
-    } else if (updatedTask.status === "done") {
-      setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
-      setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
-      setDoneTasks(doneTasks.map(task => 
-        task.id === updatedTask.id ? updatedTask : task
-      ));
+  const handleEditTask = async (updatedTask: Task) => {
+    try {
+      const result = await taskService.updateTask(updatedTask);
+      
+      // Remove the task from its current column
+      if (updatedTask.status === "todo") {
+        setTodoTasks(todoTasks.map(task => 
+          task.id === updatedTask.id ? result : task
+        ));
+        setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
+        setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
+      } else if (updatedTask.status === "inProgress") {
+        setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
+        setInProgressTasks(inProgressTasks.map(task => 
+          task.id === updatedTask.id ? result : task
+        ));
+        setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
+      } else if (updatedTask.status === "done") {
+        setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
+        setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
+        setDoneTasks(doneTasks.map(task => 
+          task.id === updatedTask.id ? result : task
+        ));
+      }
+      
+      toast.success("Task updated successfully");
+    } catch (error) {
+      console.error("Error updating task:", error);
+      // Error is handled in the service
     }
-    
-    moveTask(updatedTask.id, updatedTask.status);
-    toast.success("Task updated successfully");
   };
 
   // Handle deleting a task
-  const handleDeleteTask = (taskId: string) => {
-    setTodoTasks(todoTasks.filter(task => task.id !== taskId));
-    setInProgressTasks(inProgressTasks.filter(task => task.id !== taskId));
-    setDoneTasks(doneTasks.filter(task => task.id !== taskId));
-    toast.success("Task deleted successfully");
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await taskService.deleteTask(taskId);
+      
+      setTodoTasks(todoTasks.filter(task => task.id !== taskId));
+      setInProgressTasks(inProgressTasks.filter(task => task.id !== taskId));
+      setDoneTasks(doneTasks.filter(task => task.id !== taskId));
+      
+      toast.success("Task deleted successfully");
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      // Error is handled in the service
+    }
   };
 
   // Open create modal for a specific column
@@ -86,7 +136,7 @@ export default function KanbanBoard() {
     setIsEditModalOpen(true);
   };
 
-  // For drag and drop functionality (to be implemented)
+  // For drag and drop functionality
   const handleDragStart = (e: React.DragEvent, taskId: string, status: string) => {
     e.dataTransfer.setData("taskId", taskId);
     e.dataTransfer.setData("status", status);
@@ -96,7 +146,7 @@ export default function KanbanBoard() {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, newStatus: "todo" | "inProgress" | "done") => {
+  const handleDrop = async (e: React.DragEvent, newStatus: "todo" | "inProgress" | "done") => {
     e.preventDefault();
     
     const taskId = e.dataTransfer.getData("taskId");
@@ -119,18 +169,24 @@ export default function KanbanBoard() {
     
     // Add the task to its new list
     if (taskToMove) {
-      const updatedTask = { ...taskToMove, status: newStatus };
-      
-      if (newStatus === "todo") {
-        setTodoTasks([...todoTasks, updatedTask]);
-      } else if (newStatus === "inProgress") {
-        setInProgressTasks([...inProgressTasks, updatedTask]);
-      } else if (newStatus === "done") {
-        setDoneTasks([...doneTasks, updatedTask]);
+      try {
+        const updatedTask = { ...taskToMove, status: newStatus };
+        const result = await taskService.updateTask(updatedTask);
+        
+        if (newStatus === "todo") {
+          setTodoTasks([...todoTasks, result]);
+        } else if (newStatus === "inProgress") {
+          setInProgressTasks([...inProgressTasks, result]);
+        } else if (newStatus === "done") {
+          setDoneTasks([...doneTasks, result]);
+        }
+        
+        toast.success(`Task moved to ${newStatus === "todo" ? "To Do" : newStatus === "inProgress" ? "In Progress" : "Done"}`);
+      } catch (error) {
+        console.error("Error moving task:", error);
+        // Revert UI changes if API call fails
+        fetchTasks();
       }
-      
-      moveTask(taskId, newStatus);
-      toast.success(`Task moved to ${newStatus === "todo" ? "To Do" : newStatus === "inProgress" ? "In Progress" : "Done"}`);
     }
   };
 
@@ -175,9 +231,15 @@ export default function KanbanBoard() {
             </div>
           ))}
           
-          {tasks.length === 0 && (
+          {!isLoading && tasks.length === 0 && (
             <div className="text-center py-8 text-gray-400 italic text-sm">
               No tasks yet
+            </div>
+          )}
+          
+          {isLoading && (
+            <div className="text-center py-8 text-gray-400">
+              Loading tasks...
             </div>
           )}
         </div>

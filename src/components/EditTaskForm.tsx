@@ -21,8 +21,8 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Task, TaskStatus } from "@/lib/types";
-import { users } from "@/lib/data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { userService } from "@/services/api";
 
 interface EditTaskFormProps {
   task: Task | null;
@@ -37,6 +37,12 @@ export default function EditTaskForm({ task, open, onClose, onUpdateTask }: Edit
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   useEffect(() => {
     if (task) {
@@ -44,9 +50,21 @@ export default function EditTaskForm({ task, open, onClose, onUpdateTask }: Edit
       setDescription(task.description);
       setStatus(task.status);
       setAssigneeId(task.assigneeId);
-      setDueDate(task.dueDate);
+      setDueDate(task.dueDate ? new Date(task.dueDate) : null);
     }
   }, [task]);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const usersData = await userService.getUsers();
+      setUsers(usersData);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,13 +164,13 @@ export default function EditTaskForm({ task, open, onClose, onUpdateTask }: Edit
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(new Date(dueDate), "PPP") : "Select due date"}
+                  {dueDate ? format(dueDate, "PPP") : "Select due date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   mode="single"
-                  selected={dueDate ? new Date(dueDate) : undefined}
+                  selected={dueDate || undefined}
                   onSelect={setDueDate}
                   initialFocus
                 />

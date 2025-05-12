@@ -1,73 +1,93 @@
-# Welcome to your Lovable project
 
-## Project info
+# TaskFlow - Kanban Task Management System
 
-**URL**: https://lovable.dev/projects/d26679c7-5694-419d-ab50-c9db90a532a9
+A full-featured Kanban-style task management application with MongoDB database integration.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- User authentication
+- Task creation, editing, and deletion
+- Drag-and-drop task management across To Do, In Progress, and Done columns
+- Task assignments to team members
+- Due date tracking with color-coded indicators
+- Activity logging for all user actions
+- Role-based access control (Admin, Manager, Member)
 
-**Use Lovable**
+## Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d26679c7-5694-419d-ab50-c9db90a532a9) and start prompting.
+- Frontend: React + TypeScript with Tailwind CSS
+- Backend: Node.js + Express.js
+- Database: MongoDB
 
-Changes made via Lovable will be committed automatically to this repo.
+## Setup Instructions
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js (v14 or later)
+- MongoDB (local installation or MongoDB Atlas)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### MongoDB Setup
 
-Follow these steps:
+1. Install MongoDB locally or create a MongoDB Atlas account
+2. Create a database named `projectfsd`
+3. The application will automatically create the following collections:
+   - `users`
+   - `tasks`
+   - `projects`
+   - `activities`
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Backend Setup
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+1. Navigate to the server directory:
+   ```
+   cd server
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+3. Create a `.env` file with your MongoDB connection string:
+   ```
+   MONGODB_URI=mongodb://localhost:27017/projectfsd
+   PORT=5000
+   ```
 
-**Edit a file directly in GitHub**
+4. Start the server:
+   ```
+   npm start
+   ```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Frontend Setup
 
-**Use GitHub Codespaces**
+1. In the root directory, install dependencies:
+   ```
+   npm install
+   ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. Start the React development server:
+   ```
+   npm run dev
+   ```
 
-## What technologies are used for this project?
+3. Open your browser and navigate to `http://localhost:5173`
 
-This project is built with:
+## Usage
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. Log in with any email/password (the application accepts any credentials)
+2. Create, edit, and manage tasks using the Kanban board
+3. Drag tasks between columns to change their status
+4. Assign tasks to team members
+5. Set due dates for tasks
+6. View recent activities in the sidebar
 
-## How can I deploy this project?
+## Data Persistence
 
-Simply open [Lovable](https://lovable.dev/projects/d26679c7-5694-419d-ab50-c9db90a532a9) and click on Share -> Publish.
+All data is stored in MongoDB and persists between sessions. The application includes seed data that is automatically loaded if the database is empty.
 
-## Can I connect a custom domain to my Lovable project?
+## Development
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- The server runs on port 5000
+- The client runs on port 5173
+- API routes are prefixed with `/api`

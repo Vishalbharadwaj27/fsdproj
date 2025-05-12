@@ -4,42 +4,24 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const { login, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
+    
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Store user data in localStorage (simulating database storage)
-      localStorage.setItem("currentUser", JSON.stringify({
-        id: "u1",
-        name: email.split("@")[0],
-        email,
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=" + email,
-        role: "admin",
-      }));
-      
-      // Set auth state
-      localStorage.setItem("isAuthenticated", "true");
-      
-      toast.success("Login successful!");
+      await login({ email, password });
       navigate("/");
     } catch (error) {
-      toast.error("Login failed. Please try again.");
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+      console.error("Login error:", error);
+      // Error is handled in the AuthContext
     }
   };
 
@@ -81,9 +63,9 @@ const Login = () => {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={loading}
             >
-              {isLoading ? "Logging in..." : "Log in"}
+              {loading ? "Logging in..." : "Log in"}
             </Button>
           </CardFooter>
         </form>

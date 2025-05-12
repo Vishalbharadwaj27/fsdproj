@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,9 +19,10 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Task, TaskStatus, User } from "@/lib/types";
-import { users, currentUser } from "@/lib/data";
+import { Task, TaskStatus } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { userService } from "@/services/api";
 
 interface CreateTaskFormProps {
   open: boolean;
@@ -42,6 +42,31 @@ export default function CreateTaskForm({
   const [status, setStatus] = useState<TaskStatus>(initialStatus);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { user } = useAuth();
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+  
+  useEffect(() => {
+    // Reset status when initialStatus changes
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const usersData = await userService.getUsers();
+      setUsers(usersData);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +77,7 @@ export default function CreateTaskForm({
       status,
       assigneeId,
       dueDate,
-      createdBy: currentUser.id,
+      createdBy: user?.id || "1", // Default to user 1 if not logged in
     });
     
     resetForm();

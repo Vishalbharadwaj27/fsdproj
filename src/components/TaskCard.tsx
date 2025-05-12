@@ -1,7 +1,7 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Task, User } from "@/lib/types";
-import { getUserById } from "@/lib/data";
+import { userService } from "@/services/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Calendar, MessageSquare, MoreHorizontal } from "lucide-react";
@@ -21,9 +21,27 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
-  const assignee: User | undefined = task.assigneeId
-    ? getUserById(task.assigneeId)
-    : undefined;
+  const [assignee, setAssignee] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (task.assigneeId) {
+      fetchAssignee(task.assigneeId);
+    }
+  }, [task.assigneeId]);
+
+  const fetchAssignee = async (userId: string) => {
+    setLoading(true);
+    try {
+      const user = await userService.getUserById(userId);
+      setAssignee(user);
+    } catch (error) {
+      console.error("Error fetching assignee:", error);
+      setAssignee(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getDueDateColor = (): string => {
     if (!task.dueDate) return "";
@@ -74,7 +92,9 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
       )}
       
       <div className="flex justify-between items-center mt-2">
-        {assignee ? (
+        {loading && <span className="text-xs text-gray-500">Loading...</span>}
+        
+        {!loading && assignee ? (
           <div className="flex items-center">
             <Avatar className="h-6 w-6 mr-2">
               <AvatarImage src={assignee.avatar} alt={assignee.name} />
@@ -82,9 +102,9 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
             </Avatar>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
-        ) : (
+        ) : !loading ? (
           <span className="text-xs text-gray-500">Unassigned</span>
-        )}
+        ) : null}
         
         {task.comments.length > 0 && (
           <div className="flex items-center text-gray-500">

@@ -1,12 +1,15 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User } from "@/lib/types";
+import { User, LoginCredentials } from "@/lib/types";
+import { authService } from "@/services/api";
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (user: User) => void;
+  login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -26,11 +30,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = (userData: User) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    localStorage.setItem("currentUser", JSON.stringify(userData));
-    localStorage.setItem("isAuthenticated", "true");
+  const login = async (credentials: LoginCredentials): Promise<void> => {
+    setLoading(true);
+    try {
+      const userData = await authService.login(credentials);
+      setUser(userData);
+      setIsAuthenticated(true);
+      localStorage.setItem("currentUser", JSON.stringify(userData));
+      localStorage.setItem("isAuthenticated", "true");
+      toast.success("Login successful!");
+    } catch (error) {
+      toast.error("Login failed. Please try again.");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
@@ -38,10 +52,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
     localStorage.removeItem("currentUser");
     localStorage.removeItem("isAuthenticated");
+    toast.success("Logged out successfully");
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

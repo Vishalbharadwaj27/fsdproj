@@ -19,6 +19,25 @@ A full-featured Kanban-style task management application with MongoDB database i
 - Backend: Node.js + Express.js
 - Database: MongoDB
 
+## Project Structure
+
+```
+project-root/
+├── src/                      # React frontend source code
+│   ├── components/           # Reusable UI components
+│   ├── contexts/             # React context providers
+│   ├── hooks/                # Custom React hooks
+│   ├── lib/                  # Utilities and type definitions
+│   ├── pages/                # Page components
+│   ├── services/             # API services
+│   └── ...
+├── server/                   # Backend Express server
+│   ├── server.js             # Main server file
+│   ├── package.json          # Server dependencies
+│   └── .env                  # Server environment variables
+└── ...
+```
+
 ## Setup Instructions
 
 ### Prerequisites
@@ -35,6 +54,7 @@ A full-featured Kanban-style task management application with MongoDB database i
    - `tasks`
    - `projects`
    - `activities`
+4. Update the MongoDB connection string in `server/.env` if necessary
 
 ### Backend Setup
 
@@ -48,15 +68,14 @@ A full-featured Kanban-style task management application with MongoDB database i
    npm install
    ```
 
-3. Create a `.env` file with your MongoDB connection string:
-   ```
-   MONGODB_URI=mongodb://localhost:27017/projectfsd
-   PORT=5000
-   ```
-
-4. Start the server:
+3. Start the server:
    ```
    npm start
+   ```
+   
+   For development with auto-restart:
+   ```
+   npm run dev
    ```
 
 ### Frontend Setup
@@ -82,12 +101,14 @@ A full-featured Kanban-style task management application with MongoDB database i
 5. Set due dates for tasks
 6. View recent activities in the sidebar
 
+## Troubleshooting
+
+If you encounter "Failed to fetch" errors:
+1. Ensure both frontend and backend servers are running
+2. Check that MongoDB is running and accessible
+3. Verify the correct ports are being used (backend: 5000, frontend: 5173)
+4. Check browser console for specific error messages
+
 ## Data Persistence
 
 All data is stored in MongoDB and persists between sessions. The application includes seed data that is automatically loaded if the database is empty.
-
-## Development
-
-- The server runs on port 5000
-- The client runs on port 5173
-- API routes are prefixed with `/api`

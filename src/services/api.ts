@@ -2,11 +2,12 @@
 import { User, Task, Project, Activity, LoginCredentials } from '@/lib/types';
 import { toast } from 'sonner';
 
-const API_URL = 'http://localhost:5000/api';
+// Use environment-aware API URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Helper function to handle API errors
 const handleError = (error: unknown, message: string) => {
-  console.error(error);
+  console.error("API Error:", error);
   toast.error(message);
   throw error;
 };
@@ -20,10 +21,14 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
         'Content-Type': 'application/json',
         ...options?.headers,
       },
+      // Include credentials for cookies/auth
+      credentials: 'include',
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error("API error response:", errorData);
+      throw new Error(`API error: ${response.status} - ${errorData.message || 'Unknown error'}`);
     }
 
     return await response.json();

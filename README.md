@@ -1,5 +1,5 @@
 
-# TaskFlow - Kanban Task Management System
+# Kanban - Task Management System
 
 A full-featured Kanban-style task management application with MongoDB database integration.
 
@@ -51,7 +51,7 @@ project-root/
 2. Create a database named `projectfsd`
 3. The application will automatically create the following collections:
    - `users`
-   - `tasks`
+   - `kanban`
    - `projects`
    - `activities`
 4. Update the MongoDB connection string in `server/.env` if necessary
@@ -112,3 +112,4 @@ If you encounter "Failed to fetch" errors:
 ## Data Persistence
 
 All data is stored in MongoDB and persists between sessions. The application includes seed data that is automatically loaded if the database is empty.
+

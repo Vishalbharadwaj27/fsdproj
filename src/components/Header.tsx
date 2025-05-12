@@ -22,7 +22,7 @@ export default function Header({ onCreateTask }: HeaderProps) {
     <header className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <div className="flex items-center">
-          <h1 className="text-xl font-bold text-primary mr-6">TaskFlow</h1>
+          <h1 className="text-xl font-bold text-primary mr-6">Kanban</h1>
           
           <nav className="hidden md:flex space-x-4">
             <a href="#" className="text-sm font-medium text-gray-800">Dashboard</a>

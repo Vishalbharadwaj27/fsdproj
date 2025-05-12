@@ -11,7 +11,6 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-// Update CORS config to be more permissive during development
 app.use(cors({
   origin: true, // Allow requests from any origin during development
   credentials: true, // Allow credentials
@@ -31,9 +30,9 @@ async function connectToMongoDB() {
     db = client.db("projectfsd");
     
     // Create indexes for frequently accessed fields
+    await db.collection('kanban').createIndex({ status: 1 });
+    await db.collection('kanban').createIndex({ assigneeId: 1 });
     await db.collection('users').createIndex({ email: 1 });
-    await db.collection('tasks').createIndex({ status: 1 });
-    await db.collection('tasks').createIndex({ assigneeId: 1 });
     await db.collection('activities').createIndex({ createdAt: -1 });
 
     return true;
@@ -129,7 +128,7 @@ app.get('/api/tasks', async (req, res) => {
     if (status) query.status = status;
     if (assigneeId) query.assigneeId = assigneeId;
     
-    const tasks = await db.collection('tasks').find(query).toArray();
+    const tasks = await db.collection('kanban').find(query).toArray();
     res.json(tasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -146,7 +145,7 @@ app.post('/api/tasks', async (req, res) => {
       comments: []
     };
     
-    await db.collection('tasks').insertOne(newTask);
+    await db.collection('kanban').insertOne(newTask);
     
     // Log activity
     const activity = {
@@ -172,9 +171,9 @@ app.put('/api/tasks/:id', async (req, res) => {
     const updatedTask = req.body;
     
     // Get old task for activity logging
-    const oldTask = await db.collection('tasks').findOne({ id: taskId });
+    const oldTask = await db.collection('kanban').findOne({ id: taskId });
     
-    await db.collection('tasks').updateOne(
+    await db.collection('kanban').updateOne(
       { id: taskId },
       { $set: updatedTask }
     );
@@ -202,13 +201,13 @@ app.put('/api/tasks/:id', async (req, res) => {
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
     const taskId = req.params.id;
-    const task = await db.collection('tasks').findOne({ id: taskId });
+    const task = await db.collection('kanban').findOne({ id: taskId });
     
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
     }
     
-    await db.collection('tasks').deleteOne({ id: taskId });
+    await db.collection('kanban').deleteOne({ id: taskId });
     
     // Log activity
     const activity = {
@@ -238,13 +237,13 @@ app.post('/api/tasks/:taskId/comments', async (req, res) => {
       createdAt: new Date()
     };
     
-    await db.collection('tasks').updateOne(
+    await db.collection('kanban').updateOne(
       { id: taskId },
       { $push: { comments: comment } }
     );
     
     // Log activity
-    const task = await db.collection('tasks').findOne({ id: taskId });
+    const task = await db.collection('kanban').findOne({ id: taskId });
     const activity = {
       id: new ObjectId().toString(),
       userId: comment.userId,
@@ -288,7 +287,7 @@ app.get('/api/projects/:id', async (req, res) => {
       // Create default project if it doesn't exist
       project = {
         id: "p1",
-        name: "Task Management System",
+        name: "Kanban Task Management",
         description: "Kanban-style task management application",
         createdBy: "1",
         createdAt: new Date()
@@ -297,7 +296,7 @@ app.get('/api/projects/:id', async (req, res) => {
     }
     
     // Get tasks for this project
-    const tasks = await db.collection('tasks').find().toArray();
+    const tasks = await db.collection('kanban').find().toArray();
     // Get users for this project
     const users = await db.collection('users').find().toArray();
     
@@ -436,12 +435,12 @@ async function initializeDatabase() {
           comments: []
         }
       ];
-      await db.collection('tasks').insertMany(tasks);
+      await db.collection('kanban').insertMany(tasks);
       
       // Insert mock project
       const project = {
         id: "p1",
-        name: "Task Management System",
+        name: "Kanban Task Management",
         description: "Kanban-style task management application",
         createdBy: "1",
         createdAt: new Date(2025, 3, 28)

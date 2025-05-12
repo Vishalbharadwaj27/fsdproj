@@ -5,7 +5,6 @@ import Header from "@/components/Header";
 import ActivityLog from "@/components/ActivityLog";
 import CreateTaskForm from "@/components/CreateTaskForm";
 import { projectService, taskService } from "@/services/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { Project, Task } from "@/lib/types";
 
 const Index = () => {
@@ -13,8 +12,6 @@ const Index = () => {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const { user } = useAuth();
-
   useEffect(() => {
     fetchProject();
   }, []);
@@ -58,11 +55,6 @@ const Index = () => {
                 <p className="text-gray-600">{project?.description}</p>
               </>
             )}
-          </div>
-          <div className="text-sm">
-            <span className="text-gray-500">
-              Project Owner: <span className="font-semibold text-gray-800">{user?.name}</span>
-            </span>
           </div>
         </div>
         

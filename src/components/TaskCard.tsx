@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface TaskCardProps {
   task: Task;
@@ -23,6 +24,7 @@ interface TaskCardProps {
 export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
   const [assignee, setAssignee] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (task.assigneeId) {
@@ -56,6 +58,17 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
     return "text-green-500";
   };
 
+  const handleDeleteClick = () => {
+    if (isConfirmingDelete) {
+      onDelete(task.id);
+      setIsConfirmingDelete(false);
+    } else {
+      setIsConfirmingDelete(true);
+      // Auto-reset after 3 seconds
+      setTimeout(() => setIsConfirmingDelete(false), 3000);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-4 mb-4 border border-gray-200 hover:shadow-lg transition-shadow">
       <div className="flex justify-between items-start mb-3">
@@ -71,10 +84,13 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem 
-              className="text-red-600"
-              onClick={() => onDelete(task.id)}
+              className={cn(
+                "text-red-600",
+                isConfirmingDelete && "bg-red-50"
+              )}
+              onClick={handleDeleteClick}
             >
-              Delete
+              {isConfirmingDelete ? "Confirm Delete?" : "Delete"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -106,7 +122,7 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           <span className="text-xs text-gray-500">Unassigned</span>
         ) : null}
         
-        {task.comments.length > 0 && (
+        {task.comments && task.comments.length > 0 && (
           <div className="flex items-center text-gray-500">
             <MessageSquare className="h-3 w-3 mr-1" />
             <span className="text-xs">{task.comments.length}</span>

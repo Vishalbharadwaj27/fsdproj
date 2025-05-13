@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Task } from "@/lib/types";
 import { taskService } from "@/services/api";
@@ -9,7 +8,12 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function KanbanBoard() {
+interface KanbanBoardProps {
+  refreshTrigger?: number;
+  onDataChange?: () => void;
+}
+
+export default function KanbanBoard({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) {
   const [todoTasks, setTodoTasks] = useState<Task[]>([]);
   const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
   const [doneTasks, setDoneTasks] = useState<Task[]>([]);
@@ -22,10 +26,10 @@ export default function KanbanBoard() {
   
   const { user } = useAuth();
 
-  // Fetch tasks on component mount
+  // Fetch tasks on component mount or when refreshTrigger changes
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [refreshTrigger]);
 
   // Fetch all tasks from MongoDB
   const fetchTasks = async () => {
@@ -69,10 +73,13 @@ export default function KanbanBoard() {
       }
       
       toast.success("Task created successfully");
+      if (onDataChange) onDataChange();
     } catch (error) {
       console.error("Error creating task:", error);
-      // Error is handled in the service
+      toast.error("Failed to create task");
     }
+    
+    setIsCreateModalOpen(false);
   };
 
   // Handle editing a task
@@ -80,32 +87,47 @@ export default function KanbanBoard() {
     try {
       const result = await taskService.updateTask(updatedTask);
       
-      // Remove the task from its current column
-      if (updatedTask.status === "todo") {
-        setTodoTasks(todoTasks.map(task => 
-          task.id === updatedTask.id ? result : task
-        ));
-        setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
-        setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
-      } else if (updatedTask.status === "inProgress") {
-        setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
-        setInProgressTasks(inProgressTasks.map(task => 
-          task.id === updatedTask.id ? result : task
-        ));
-        setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
-      } else if (updatedTask.status === "done") {
-        setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
-        setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
-        setDoneTasks(doneTasks.map(task => 
-          task.id === updatedTask.id ? result : task
-        ));
+      // Remove the task from its original column and add to the new column based on status
+      const originalStatus = currentTask?.status;
+      
+      if (originalStatus !== updatedTask.status) {
+        // Task status changed - move between columns
+        
+        if (originalStatus === "todo") {
+          setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
+        } else if (originalStatus === "inProgress") {
+          setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
+        } else if (originalStatus === "done") {
+          setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
+        }
+        
+        if (updatedTask.status === "todo") {
+          setTodoTasks([...todoTasks, result]);
+        } else if (updatedTask.status === "inProgress") {
+          setInProgressTasks([...inProgressTasks, result]);
+        } else if (updatedTask.status === "done") {
+          setDoneTasks([...doneTasks, result]);
+        }
+      } else {
+        // Task status unchanged - update in the same column
+        if (updatedTask.status === "todo") {
+          setTodoTasks(todoTasks.map(task => task.id === updatedTask.id ? result : task));
+        } else if (updatedTask.status === "inProgress") {
+          setInProgressTasks(inProgressTasks.map(task => task.id === updatedTask.id ? result : task));
+        } else if (updatedTask.status === "done") {
+          setDoneTasks(doneTasks.map(task => task.id === updatedTask.id ? result : task));
+        }
       }
       
       toast.success("Task updated successfully");
+      if (onDataChange) onDataChange();
     } catch (error) {
       console.error("Error updating task:", error);
-      // Error is handled in the service
+      toast.error("Failed to update task");
     }
+    
+    setIsEditModalOpen(false);
+    setCurrentTask(null);
   };
 
   // Handle deleting a task
@@ -118,9 +140,10 @@ export default function KanbanBoard() {
       setDoneTasks(doneTasks.filter(task => task.id !== taskId));
       
       toast.success("Task deleted successfully");
+      if (onDataChange) onDataChange();
     } catch (error) {
       console.error("Error deleting task:", error);
-      // Error is handled in the service
+      toast.error("Failed to delete task");
     }
   };
 
@@ -144,10 +167,16 @@ export default function KanbanBoard() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.currentTarget.classList.add("bg-gray-100");
+  };
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove("bg-gray-100");
   };
 
   const handleDrop = async (e: React.DragEvent, newStatus: "todo" | "inProgress" | "done") => {
     e.preventDefault();
+    e.currentTarget.classList.remove("bg-gray-100");
     
     const taskId = e.dataTransfer.getData("taskId");
     const oldStatus = e.dataTransfer.getData("status");
@@ -182,8 +211,10 @@ export default function KanbanBoard() {
         }
         
         toast.success(`Task moved to ${newStatus === "todo" ? "To Do" : newStatus === "inProgress" ? "In Progress" : "Done"}`);
+        if (onDataChange) onDataChange();
       } catch (error) {
         console.error("Error moving task:", error);
+        toast.error("Failed to move task");
         // Revert UI changes if API call fails
         fetchTasks();
       }
@@ -198,8 +229,9 @@ export default function KanbanBoard() {
   ) => {
     return (
       <div 
-        className="bg-gray-50 rounded-lg p-4 w-full md:w-80 flex-shrink-0"
+        className="bg-gray-50 rounded-lg p-4 w-full md:w-80 flex-shrink-0 transition-colors"
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={(e) => handleDrop(e, status)}
       >
         <div className="flex justify-between items-center mb-4">
@@ -209,19 +241,20 @@ export default function KanbanBoard() {
           </h3>
           <button 
             onClick={() => openCreateModal(status)} 
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
+            aria-label={`Add task to ${title}`}
           >
             <Plus size={16} />
           </button>
         </div>
         
-        <div className="space-y-3">
+        <div className="space-y-3 min-h-[200px]">
           {tasks.map((task) => (
             <div 
               key={task.id} 
               draggable
               onDragStart={(e) => handleDragStart(e, task.id, task.status)}
-              className="cursor-grab"
+              className="cursor-grab active:cursor-grabbing"
             >
               <TaskCard
                 task={task}

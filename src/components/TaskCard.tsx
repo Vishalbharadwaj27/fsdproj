@@ -1,116 +1,138 @@
 
 import { useState, useEffect } from "react";
-import { Task, User } from "@/lib/types";
+import { Task, User, TaskPriority, TaskLabel } from "@/lib/types";
 import { userService } from "@/services/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Calendar, MessageSquare, MoreHorizontal } from "lucide-react";
-import { format } from "date-fns";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { Calendar, MessageSquare, Edit2, Trash2, Tag, Clock, Flag } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { taskService } from "@/services/api";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface TaskCardProps {
   task: Task;
-  onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => void;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
   const [assignee, setAssignee] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (task.assigneeId) {
-      fetchAssignee(task.assigneeId);
+      userService.getUserById(task.assigneeId).then(user => {
+        setAssignee(user);
+      });
     }
   }, [task.assigneeId]);
 
-  const fetchAssignee = async (userId: string) => {
-    setLoading(true);
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+
     try {
-      const user = await userService.getUserById(userId);
-      setAssignee(user);
+      setIsDeleting(true);
+      await taskService.deleteTask(task.id);
+      toast.success("Task deleted successfully");
+      if (onDelete) onDelete(task.id);
     } catch (error) {
-      console.error("Error fetching assignee:", error);
-      setAssignee(null);
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task");
     } finally {
-      setLoading(false);
+      setIsDeleting(false);
     }
+  };
+
+  const priorityColors: Record<TaskPriority, string> = {
+    low: 'bg-green-100 text-green-800',
+    medium: 'bg-yellow-100 text-yellow-800',
+    high: 'bg-red-100 text-red-800',
+  };
+
+  const labelColors: Record<TaskLabel, string> = {
+    bug: 'bg-red-100 text-red-800',
+    feature: 'bg-blue-100 text-blue-800',
+    enhancement: 'bg-purple-100 text-purple-800',
+    documentation: 'bg-gray-100 text-gray-800',
   };
 
   const getDueDateColor = (): string => {
     if (!task.dueDate) return "";
-    
+
     const today = new Date();
     const dueDate = new Date(task.dueDate);
     const diffTime = dueDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays < 0) return "text-red-500";
     if (diffDays <= 2) return "text-amber-500";
     return "text-green-500";
   };
 
-  const handleDeleteClick = () => {
-    if (isConfirmingDelete) {
-      onDelete(task.id);
-      setIsConfirmingDelete(false);
-    } else {
-      setIsConfirmingDelete(true);
-      // Auto-reset after 3 seconds
-      setTimeout(() => setIsConfirmingDelete(false), 3000);
-    }
-  };
-
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-4 border border-gray-200 hover:shadow-lg transition-shadow">
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="font-medium text-gray-900">{task.title}</h3>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(task)}>
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              className={cn(
-                "text-red-600",
-                isConfirmingDelete && "bg-red-50"
+    <Card className="bg-white rounded-lg shadow-md p-4 mb-4 border border-gray-200 hover:shadow-lg transition-shadow">
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              {task.priority && (
+                <span className={`px-2 py-1 rounded-full ${priorityColors[task.priority]}`}>
+                  <Flag className="w-3 h-3 mr-1" />
+                  {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                </span>
               )}
-              onClick={handleDeleteClick}
+              {task.title}
+            </CardTitle>
+            <CardDescription>{task.description}</CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onEdit?.(task)}
             >
-              {isConfirmingDelete ? "Confirm Delete?" : "Delete"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      
-      <p className="text-gray-600 text-sm mb-4 line-clamp-3">{task.description}</p>
-      
-      {task.dueDate && (
-        <div className="flex items-center text-xs mb-3">
-          <Calendar className="h-3 w-3 mr-1" />
-          <span className={cn("text-xs", getDueDateColor())}>
-            Due {format(new Date(task.dueDate), "MMM d")}
-          </span>
+              <Edit2 className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
         </div>
-      )}
-      
-      <div className="flex justify-between items-center mt-2">
-        {loading && <span className="text-xs text-gray-500">Loading...</span>}
-        
-        {!loading && assignee ? (
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {task.dueDate && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              {new Date(task.dueDate).toLocaleDateString()}
+            </div>
+          )}
+          {task.labels?.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {task.labels.map((label) => (
+                <span
+                  key={label}
+                  className={`px-2 py-1 rounded-full ${labelColors[label]}`}
+                >
+                  <Tag className="w-3 h-3 mr-1" />
+                  {label.charAt(0).toUpperCase() + label.slice(1)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        {task.assigneeId && (
           <div className="flex items-center">
             <Avatar className="h-6 w-6 mr-2">
               <AvatarImage src={assignee.avatar} alt={assignee.name} />
@@ -118,9 +140,9 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
             </Avatar>
             <span className="text-xs text-gray-600">{assignee.name}</span>
           </div>
-        ) : !loading ? (
+        ) || (
           <span className="text-xs text-gray-500">Unassigned</span>
-        ) : null}
+        )}
         
         {task.comments && task.comments.length > 0 && (
           <div className="flex items-center text-gray-500">
@@ -129,6 +151,6 @@ export default function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

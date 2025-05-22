@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { DragEvent } from "react";
 import { Task } from "@/lib/types";
 import { taskService } from "@/services/api";
 import TaskCard from "./TaskCard";
@@ -8,31 +9,24 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface KanbanBoardProps {
-  refreshTrigger?: number;
-  onDataChange?: () => void;
-}
+type TaskStatus = "todo" | "inProgress" | "done";
 
-export default function KanbanBoard({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) {
+const KanbanBoard = () => {
   const [todoTasks, setTodoTasks] = useState<Task[]>([]);
   const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
   const [doneTasks, setDoneTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [currentTask, setCurrentTask] = useState<Task | null>(null);
-  const [createForColumn, setCreateForColumn] = useState<"todo" | "inProgress" | "done">("todo");
-  
+  const [createForColumn, setCreateForColumn] = useState<TaskStatus>("todo");
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   const { user } = useAuth();
 
-  // Fetch tasks on component mount or when refreshTrigger changes
-  useEffect(() => {
-    fetchTasks();
-  }, [refreshTrigger]);
-
   // Fetch all tasks from MongoDB
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     try {
       const [todoData, inProgressData, doneData] = await Promise.all([
@@ -40,7 +34,7 @@ export default function KanbanBoard({ refreshTrigger = 0, onDataChange }: Kanban
         taskService.getTasksByStatus("inProgress"),
         taskService.getTasksByStatus("done")
       ]);
-      
+
       setTodoTasks(todoData);
       setInProgressTasks(inProgressData);
       setDoneTasks(doneData);
@@ -50,84 +44,130 @@ export default function KanbanBoard({ refreshTrigger = 0, onDataChange }: Kanban
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch tasks on component mount or when refreshTrigger changes
+  useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    
+    const fetchData = async () => {
+      try {
+        await fetchTasks();
+      } catch (error) {
+        if (!signal.aborted) {
+          console.error("Error fetching tasks:", error);
+        }
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      controller.abort();
+    };
+  }, [refreshTrigger, fetchTasks]); // Include fetchTasks in dependencies
 
   // Handle creating a new task
-  const handleCreateTask = async (task: Omit<Task, "id" | "createdAt" | "comments">) => {
+  const handleCreateTask = async (taskData: Omit<Task, "id" | "createdAt" | "comments">): Promise<void> => {
+    console.log("Starting task creation with data:", taskData);
+    console.log("Current createForColumn:", createForColumn);
+    
     try {
-      // Ensure task has the current user's ID
-      const taskWithUser = {
-        ...task,
-        createdBy: user?.id || "1" // Fallback to default user if not authenticated
+      // Ensure required fields are present
+      const taskToCreate = {
+        ...taskData,
+        createdBy: user?.id || "1", // Fallback to default user if not authenticated
+        labels: taskData.labels || [],
+        priority: taskData.priority || "medium",
+        status: taskData.status || createForColumn // Use the column's status if not provided
       };
+
+      console.log("Sending to API:", taskToCreate);
       
-      const newTask = await taskService.createTask(taskWithUser);
+      const newTask = await taskService.createTask(taskToCreate);
+      console.log("API Response - Created task:", newTask);
+
+      // Update the appropriate state based on the task status
+      const status = newTask.status || taskToCreate.status;
+      console.log("Adding task to status:", status);
       
-      // Update the state based on the status
-      if (newTask.status === "todo") {
-        setTodoTasks([...todoTasks, newTask]);
-      } else if (newTask.status === "inProgress") {
-        setInProgressTasks([...inProgressTasks, newTask]);
-      } else if (newTask.status === "done") {
-        setDoneTasks([...doneTasks, newTask]);
+      // Update the appropriate state based on the task status
+      switch (status) {
+        case "todo":
+          setTodoTasks(prev => [...prev, newTask]);
+          break;
+        case "inProgress":
+          setInProgressTasks(prev => [...prev, newTask]);
+          break;
+        case "done":
+          setDoneTasks(prev => [...prev, newTask]);
+          break;
       }
       
-      toast.success("Task created successfully");
-      if (onDataChange) onDataChange();
+      // Close the modal
+      setIsCreateModalOpen(false);
+      
+      // Show success message
+      toast.success(`Task added to ${status.charAt(0).toUpperCase() + status.slice(1)}`);
+      
+      // Force a refetch of all tasks to ensure consistency
+      setRefreshTrigger(prev => prev + 1);
+      
+      return Promise.resolve();
     } catch (error) {
-      console.error("Error creating task:", error);
-      toast.error("Failed to create task");
+      console.error("Error in handleCreateTask:", error);
+      toast.error("Failed to create task. Please try again.");
+      return Promise.reject(error);
     }
-    
-    setIsCreateModalOpen(false);
   };
+
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.DragEvent, taskId: string, status: string) => {
+    const task = todoTasks.find((t) => t.id === taskId) ||
+      inProgressTasks.find((t) => t.id === taskId) ||
+      doneTasks.find((t) => t.id === taskId);
+
+    if (task) {
+      setActiveTask(task);
+      e.dataTransfer.setData("taskId", taskId);
+      e.dataTransfer.setData("status", status);
+    }
+  }, [todoTasks, inProgressTasks, doneTasks]);
 
   // Handle editing a task
   const handleEditTask = async (updatedTask: Task) => {
     try {
       const result = await taskService.updateTask(updatedTask);
-      
-      // Remove the task from its original column and add to the new column based on status
       const originalStatus = currentTask?.status;
-      
-      if (originalStatus !== updatedTask.status) {
-        // Task status changed - move between columns
-        
+
+      // Remove from old status if it changed
+      if (originalStatus && originalStatus !== updatedTask.status) {
         if (originalStatus === "todo") {
-          setTodoTasks(todoTasks.filter(task => task.id !== updatedTask.id));
+          setTodoTasks(prev => prev.filter(task => task.id !== updatedTask.id));
         } else if (originalStatus === "inProgress") {
-          setInProgressTasks(inProgressTasks.filter(task => task.id !== updatedTask.id));
+          setInProgressTasks(prev => prev.filter(task => task.id !== updatedTask.id));
         } else if (originalStatus === "done") {
-          setDoneTasks(doneTasks.filter(task => task.id !== updatedTask.id));
+          setDoneTasks(prev => prev.filter(task => task.id !== updatedTask.id));
         }
-        
-        if (updatedTask.status === "todo") {
-          setTodoTasks([...todoTasks, result]);
-        } else if (updatedTask.status === "inProgress") {
-          setInProgressTasks([...inProgressTasks, result]);
-        } else if (updatedTask.status === "done") {
-          setDoneTasks([...doneTasks, result]);
-        }
-      } else {
-        // Task status unchanged - update in the same column
-        if (updatedTask.status === "todo") {
-          setTodoTasks(todoTasks.map(task => task.id === updatedTask.id ? result : task));
-        } else if (updatedTask.status === "inProgress") {
-          setInProgressTasks(inProgressTasks.map(task => task.id === updatedTask.id ? result : task));
-        } else if (updatedTask.status === "done") {
-          setDoneTasks(doneTasks.map(task => task.id === updatedTask.id ? result : task));
-        }
+      }
+
+      // Add to new status
+      if (updatedTask.status === "todo") {
+        setTodoTasks(prev => [...prev.filter(t => t.id !== updatedTask.id), result]);
+      } else if (updatedTask.status === "inProgress") {
+        setInProgressTasks(prev => [...prev.filter(t => t.id !== updatedTask.id), result]);
+      } else if (updatedTask.status === "done") {
+        setDoneTasks(prev => [...prev.filter(t => t.id !== updatedTask.id), result]);
       }
       
       toast.success("Task updated successfully");
-      if (onDataChange) onDataChange();
+      setIsEditModalOpen(false);
+      setCurrentTask(null);
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error("Failed to update task");
     }
-    
-    setIsEditModalOpen(false);
-    setCurrentTask(null);
   };
 
   // Handle deleting a task
@@ -135,172 +175,190 @@ export default function KanbanBoard({ refreshTrigger = 0, onDataChange }: Kanban
     try {
       await taskService.deleteTask(taskId);
       
-      setTodoTasks(todoTasks.filter(task => task.id !== taskId));
-      setInProgressTasks(inProgressTasks.filter(task => task.id !== taskId));
-      setDoneTasks(doneTasks.filter(task => task.id !== taskId));
+      // Remove task from all columns
+      setTodoTasks(prev => prev.filter(task => task.id !== taskId));
+      setInProgressTasks(prev => prev.filter(task => task.id !== taskId));
+      setDoneTasks(prev => prev.filter(task => task.id !== taskId));
       
       toast.success("Task deleted successfully");
-      if (onDataChange) onDataChange();
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task");
     }
   };
 
-  // Open create modal for a specific column
-  const openCreateModal = (column: "todo" | "inProgress" | "done") => {
-    setCreateForColumn(column);
-    setIsCreateModalOpen(true);
-  };
-
-  // Open edit modal for a task
-  const openEditModal = (task: Task) => {
-    setCurrentTask(task);
-    setIsEditModalOpen(true);
-  };
-
-  // For drag and drop functionality
-  const handleDragStart = (e: React.DragEvent, taskId: string, status: string) => {
-    e.dataTransfer.setData("taskId", taskId);
-    e.dataTransfer.setData("status", status);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.currentTarget.classList.add("bg-gray-100");
-  };
-  
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.currentTarget.classList.remove("bg-gray-100");
-  };
-
-  const handleDrop = async (e: React.DragEvent, newStatus: "todo" | "inProgress" | "done") => {
+  // Handle drop event for drag and drop
+  const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault();
     e.currentTarget.classList.remove("bg-gray-100");
     
     const taskId = e.dataTransfer.getData("taskId");
-    const oldStatus = e.dataTransfer.getData("status");
+    const oldStatus = e.dataTransfer.getData("status") as TaskStatus;
     
     if (oldStatus === newStatus) return;
     
     // Find the task in its original list
-    let taskToMove: Task | undefined;
-    if (oldStatus === "todo") {
-      taskToMove = todoTasks.find(task => task.id === taskId);
-      if (taskToMove) setTodoTasks(todoTasks.filter(task => task.id !== taskId));
-    } else if (oldStatus === "inProgress") {
-      taskToMove = inProgressTasks.find(task => task.id === taskId);
-      if (taskToMove) setInProgressTasks(inProgressTasks.filter(task => task.id !== taskId));
-    } else if (oldStatus === "done") {
-      taskToMove = doneTasks.find(task => task.id === taskId);
-      if (taskToMove) setDoneTasks(doneTasks.filter(task => task.id !== taskId));
-    }
+    const findTask = (status: TaskStatus) => {
+      if (status === "todo") return todoTasks.find(t => t.id === taskId);
+      if (status === "inProgress") return inProgressTasks.find(t => t.id === taskId);
+      return doneTasks.find(t => t.id === taskId);
+    };
     
-    // Add the task to its new list
-    if (taskToMove) {
-      try {
-        const updatedTask = { ...taskToMove, status: newStatus };
-        const result = await taskService.updateTask(updatedTask);
-        
-        if (newStatus === "todo") {
-          setTodoTasks([...todoTasks, result]);
-        } else if (newStatus === "inProgress") {
-          setInProgressTasks([...inProgressTasks, result]);
-        } else if (newStatus === "done") {
-          setDoneTasks([...doneTasks, result]);
-        }
-        
-        toast.success(`Task moved to ${newStatus === "todo" ? "To Do" : newStatus === "inProgress" ? "In Progress" : "Done"}`);
-        if (onDataChange) onDataChange();
-      } catch (error) {
-        console.error("Error moving task:", error);
-        toast.error("Failed to move task");
-        // Revert UI changes if API call fails
-        fetchTasks();
+    const taskToMove = findTask(oldStatus);
+    if (!taskToMove) return;
+    
+    try {
+      const updatedTask = { ...taskToMove, status: newStatus };
+      const result = await taskService.updateTask(updatedTask);
+      
+      // Remove from old status
+      if (oldStatus === "todo") {
+        setTodoTasks(prev => prev.filter(t => t.id !== taskId));
+      } else if (oldStatus === "inProgress") {
+        setInProgressTasks(prev => prev.filter(t => t.id !== taskId));
+      } else if (oldStatus === "done") {
+        setDoneTasks(prev => prev.filter(t => t.id !== taskId));
       }
+      
+      // Add to new status
+      if (newStatus === "todo") {
+        setTodoTasks(prev => [...prev, result]);
+      } else if (newStatus === "inProgress") {
+        setInProgressTasks(prev => [...prev, result]);
+      } else if (newStatus === "done") {
+        setDoneTasks(prev => [...prev, result]);
+      }
+      
+      toast.success(
+        `Task moved to ${
+          newStatus === "todo" ? "To Do" : 
+          newStatus === "inProgress" ? "In Progress" : "Done"
+        }`
+      );
+    } catch (error) {
+      console.error("Error moving task:", error);
+      toast.error("Failed to move task");
+      fetchTasks(); // Revert UI changes if API call fails
     }
   };
 
-  const renderColumn = (
-    title: string,
-    tasks: Task[],
-    status: "todo" | "inProgress" | "done",
-    color: string
-  ) => {
-    return (
-      <div 
-        className="bg-gray-50 rounded-lg p-4 w-full md:w-80 flex-shrink-0 transition-colors"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, status)}
+  // Handle drag over
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add("bg-gray-100");
+  };
+
+  // Handle drag leave
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove("bg-gray-100");
+  };
+
+  // Render task cards for a column
+  const renderTaskCards = (tasks: Task[], status: TaskStatus) => {
+    return tasks.map((task) => (
+      <div
+        key={task.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, task.id, status)}
+        onClick={() => {
+          setCurrentTask(task);
+          setIsEditModalOpen(true);
+        }}
+        className="cursor-move mb-3"
       >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-medium flex items-center">
-            <div className={`h-2 w-2 rounded-full ${color} mr-2`}></div>
-            {title} <span className="ml-2 text-gray-500 text-sm">({tasks.length})</span>
-          </h3>
-          <button 
-            onClick={() => openCreateModal(status)} 
-            className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
-            aria-label={`Add task to ${title}`}
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-        
-        <div className="space-y-3 min-h-[200px]">
-          {tasks.map((task) => (
-            <div 
-              key={task.id} 
-              draggable
-              onDragStart={(e) => handleDragStart(e, task.id, task.status)}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              <TaskCard
-                task={task}
-                onEdit={openEditModal}
-                onDelete={handleDeleteTask}
-              />
-            </div>
-          ))}
-          
-          {!isLoading && tasks.length === 0 && (
-            <div className="text-center py-8 text-gray-400 italic text-sm">
-              No tasks yet
-            </div>
-          )}
-          
-          {isLoading && (
-            <div className="text-center py-8 text-gray-400">
-              Loading tasks...
-            </div>
-          )}
-        </div>
+        <TaskCard
+          task={task}
+          onDelete={() => handleDeleteTask(task.id)}
+        />
+      </div>
+    ));
+  };
+
+  // Render a column
+  const renderColumn = (status: TaskStatus, tasks: Task[], title: string, color: string) => (
+    <div
+      className={`flex-1 min-w-[300px] max-w-[400px] bg-white rounded-lg p-4 shadow flex flex-col h-full`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={(e) => handleDrop(e, status)}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-medium flex items-center">
+          <div className={`h-2 w-2 rounded-full ${color} mr-2`}></div>
+          {title} <span className="ml-2 text-gray-500 text-sm">({tasks.length})</span>
+        </h3>
+        <button
+          onClick={() => {
+            setCreateForColumn(status);
+            setIsCreateModalOpen(true);
+          }}
+          className="text-gray-500 hover:text-blue-600 transition-colors p-1 rounded-full hover:bg-blue-50"
+          aria-label={`Add task to ${title}`}
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-250px)] pr-2">
+        {tasks.length > 0 ? (
+          renderTaskCards(tasks, status)
+        ) : (
+          <div className="text-center text-gray-400 py-4 border-2 border-dashed border-gray-200 rounded-lg">
+            No tasks here yet
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
-  };
+  }
 
   return (
-    <>
-      <div className="flex gap-6 overflow-x-auto pb-4 mt-6">
-        {renderColumn("To Do", todoTasks, "todo", "bg-blue-500")}
-        {renderColumn("In Progress", inProgressTasks, "inProgress", "bg-amber-500")}
-        {renderColumn("Done", doneTasks, "done", "bg-green-500")}
+    <div className="p-4 bg-gray-100 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-6">Task Board</h1>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {renderColumn("todo", todoTasks, "To Do", "bg-blue-500")}
+          {renderColumn("inProgress", inProgressTasks, "In Progress", "bg-amber-500")}
+          {renderColumn("done", doneTasks, "Done", "bg-green-500")}
+        </div>
       </div>
-      
+
+      {/* Create Task Modal */}
       <CreateTaskForm
+        key={`create-task-${createForColumn}-${isCreateModalOpen}`}
         open={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreateTask={handleCreateTask}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          // Reset the createForColumn to prevent stale state
+          setTimeout(() => setCreateForColumn("todo"), 300);
+        }}
+        onCreateTask={async (taskData) => {
+          try {
+            await handleCreateTask(taskData);
+            return Promise.resolve();
+          } catch (error) {
+            return Promise.reject(error);
+          }
+        }}
         initialStatus={createForColumn}
       />
       
+      {/* Edit Task Modal */}
       <EditTaskForm
         task={currentTask}
         open={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onUpdateTask={handleEditTask}
       />
-    </>
+    </div>
   );
-}
+};
+
+export default KanbanBoard;

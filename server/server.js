@@ -1,4 +1,3 @@
-
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
@@ -12,8 +11,8 @@ const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: true, // Allow requests from any origin during development
-  credentials: true, // Allow credentials
+  origin: true,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 app.use(express.json());
@@ -38,7 +37,6 @@ async function connectToMongoDB() {
     return true;
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);
-    // Implement retry logic
     return false;
   }
 }
@@ -53,7 +51,6 @@ async function connectToMongoDB() {
     if (!connected) {
       console.log(`Retrying connection... (${retries} attempts left)`);
       retries--;
-      // Wait for 3 seconds before retrying
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
@@ -81,18 +78,15 @@ app.post('/api/users/login', async (req, res) => {
   const { email, password } = req.body;
   
   try {
-    // For now, we're accepting any credentials as specified
-    // In a real app, you'd validate against stored credentials
     let user = await db.collection('users').findOne({ email });
     
     if (!user) {
-      // Create new user if it doesn't exist
       user = {
         id: new ObjectId().toString(),
         name: email.split("@")[0],
         email,
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=" + email,
-        role: "admin",
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+        role: "member",
       };
       
       await db.collection('users').insertOne(user);
@@ -153,7 +147,7 @@ app.post('/api/tasks', async (req, res) => {
       userId: newTask.createdBy,
       action: `created task '${newTask.title}'`,
       taskId: newTask.id,
-      projectId: "p1", // Default project ID
+      projectId: "p1",
       createdAt: new Date()
     };
     await db.collection('activities').insertOne(activity);
@@ -185,7 +179,7 @@ app.put('/api/tasks/:id', async (req, res) => {
         userId: updatedTask.createdBy,
         action: `moved task '${updatedTask.title}' to ${updatedTask.status === "todo" ? "To Do" : updatedTask.status === "inProgress" ? "In Progress" : "Done"}`,
         taskId: taskId,
-        projectId: "p1", // Default project ID
+        projectId: "p1",
         createdAt: new Date()
       };
       await db.collection('activities').insertOne(activity);
@@ -214,7 +208,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
       id: new ObjectId().toString(),
       userId: task.createdBy,
       action: `deleted task '${task.title}'`,
-      projectId: "p1", // Default project ID
+      projectId: "p1",
       createdAt: new Date()
     };
     await db.collection('activities').insertOne(activity);
@@ -249,7 +243,7 @@ app.post('/api/tasks/:taskId/comments', async (req, res) => {
       userId: comment.userId,
       action: `commented on task '${task.title}'`,
       taskId: taskId,
-      projectId: "p1", // Default project ID
+      projectId: "p1",
       createdAt: new Date()
     };
     await db.collection('activities').insertOne(activity);
@@ -264,7 +258,6 @@ app.post('/api/tasks/:taskId/comments', async (req, res) => {
 // Activities
 app.get('/api/activities', async (req, res) => {
   try {
-    // Get most recent activities first
     const activities = await db.collection('activities')
       .find()
       .sort({ createdAt: -1 })
@@ -284,7 +277,6 @@ app.get('/api/projects/:id', async (req, res) => {
     let project = await db.collection('projects').findOne({ id: req.params.id });
     
     if (!project) {
-      // Create default project if it doesn't exist
       project = {
         id: "p1",
         name: "Kanban Task Management",
@@ -295,9 +287,7 @@ app.get('/api/projects/:id', async (req, res) => {
       await db.collection('projects').insertOne(project);
     }
     
-    // Get tasks for this project
     const tasks = await db.collection('kanban').find().toArray();
-    // Get users for this project
     const users = await db.collection('users').find().toArray();
     
     project.tasks = tasks;
@@ -310,204 +300,9 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
-// Initialize database with mock data if empty
-async function initializeDatabase() {
-  try {
-    // Check if we already have users
-    const userCount = await db.collection('users').countDocuments();
-    
-    if (userCount === 0) {
-      console.log("Initializing database with mock data...");
-      
-      // Insert mock users
-      const users = [
-        { 
-          id: "1", 
-          name: "Alex Johnson", 
-          email: "alex@example.com", 
-          avatar: "https://i.pravatar.cc/150?img=1",
-          role: "admin" 
-        },
-        { 
-          id: "2", 
-          name: "Sarah Miller", 
-          email: "sarah@example.com", 
-          avatar: "https://i.pravatar.cc/150?img=2",
-          role: "manager" 
-        },
-        { 
-          id: "3", 
-          name: "David Kim", 
-          email: "david@example.com", 
-          avatar: "https://i.pravatar.cc/150?img=3",
-          role: "member" 
-        },
-        { 
-          id: "4", 
-          name: "Emily Chen", 
-          email: "emily@example.com", 
-          avatar: "https://i.pravatar.cc/150?img=4",
-          role: "member" 
-        }
-      ];
-      await db.collection('users').insertMany(users);
-      
-      // Insert mock tasks
-      const tasks = [
-        {
-          id: "t1",
-          title: "Create user stories",
-          description: "Define user stories for the next sprint",
-          status: "todo",
-          assigneeId: "2",
-          createdBy: "1",
-          createdAt: new Date(2025, 4, 5),
-          dueDate: new Date(2025, 4, 10),
-          comments: [
-            {
-              id: "c1",
-              userId: "1",
-              content: "Make sure to include acceptance criteria",
-              createdAt: new Date(2025, 4, 5, 12, 30)
-            }
-          ]
-        },
-        {
-          id: "t2",
-          title: "Design database schema",
-          description: "Design MongoDB schema for the application",
-          status: "inProgress",
-          assigneeId: "3",
-          createdBy: "1",
-          createdAt: new Date(2025, 4, 3),
-          dueDate: new Date(2025, 4, 8),
-          comments: []
-        },
-        {
-          id: "t3",
-          title: "Implement authentication",
-          description: "Set up user authentication using JWT",
-          status: "todo",
-          assigneeId: "4",
-          createdBy: "2",
-          createdAt: new Date(2025, 4, 4),
-          dueDate: new Date(2025, 4, 9),
-          comments: []
-        },
-        {
-          id: "t4",
-          title: "Setup API endpoints",
-          description: "Create RESTful API endpoints for tasks",
-          status: "inProgress",
-          assigneeId: "1",
-          createdBy: "2",
-          createdAt: new Date(2025, 4, 2),
-          dueDate: new Date(2025, 4, 7),
-          comments: []
-        },
-        {
-          id: "t5",
-          title: "Write unit tests",
-          description: "Create unit tests for backend services",
-          status: "done",
-          assigneeId: "3",
-          createdBy: "1",
-          createdAt: new Date(2025, 4, 1),
-          dueDate: new Date(2025, 4, 6),
-          comments: [
-            {
-              id: "c2",
-              userId: "3",
-              content: "All tests are passing now",
-              createdAt: new Date(2025, 4, 6, 15, 45)
-            }
-          ]
-        },
-        {
-          id: "t6",
-          title: "Frontend setup",
-          description: "Initialize React project and set up routing",
-          status: "done",
-          assigneeId: "2",
-          createdBy: "1",
-          createdAt: new Date(2025, 3, 30),
-          dueDate: new Date(2025, 4, 5),
-          comments: []
-        }
-      ];
-      await db.collection('kanban').insertMany(tasks);
-      
-      // Insert mock project
-      const project = {
-        id: "p1",
-        name: "Kanban Task Management",
-        description: "Kanban-style task management application",
-        createdBy: "1",
-        createdAt: new Date(2025, 3, 28)
-      };
-      await db.collection('projects').insertOne(project);
-      
-      // Insert mock activities
-      const activities = [
-        {
-          id: "a1",
-          userId: "1",
-          action: "created task 'Create user stories'",
-          taskId: "t1",
-          projectId: "p1",
-          createdAt: new Date(2025, 4, 5, 10, 15)
-        },
-        {
-          id: "a2",
-          userId: "2",
-          action: "moved task 'Setup API endpoints' to In Progress",
-          taskId: "t4",
-          projectId: "p1",
-          createdAt: new Date(2025, 4, 4, 14, 30)
-        },
-        {
-          id: "a3",
-          userId: "3",
-          action: "completed task 'Write unit tests'",
-          taskId: "t5",
-          projectId: "p1",
-          createdAt: new Date(2025, 4, 6, 16, 0)
-        },
-        {
-          id: "a4",
-          userId: "1",
-          action: "added Sarah Miller to the project",
-          projectId: "p1",
-          createdAt: new Date(2025, 4, 3, 9, 45)
-        },
-        {
-          id: "a5",
-          userId: "4",
-          action: "commented on task 'Create user stories'",
-          taskId: "t1",
-          projectId: "p1",
-          createdAt: new Date(2025, 4, 5, 13, 0)
-        }
-      ];
-      await db.collection('activities').insertMany(activities);
-      
-      console.log("Database initialized successfully");
-    } else {
-      console.log("Database already initialized");
-    }
-  } catch (error) {
-    console.error("Error initializing database:", error);
-  }
-}
-
 // Start the server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  
-  // Initialize database with mock data
-  setTimeout(() => {
-    initializeDatabase();
-  }, 1000); // Small delay to ensure connection is ready
 });
 
 // Handle graceful shutdown

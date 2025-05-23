@@ -13,6 +13,7 @@ interface DraggableTaskCardProps {
 
 export default function DraggableTaskCard({ task, status, onEdit, onDelete, onDragStart }: DraggableTaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   const handleDelete = async () => {
     try {
@@ -26,8 +27,12 @@ export default function DraggableTaskCard({ task, status, onEdit, onDelete, onDr
   return (
     <div
       draggable
-      onDragStart={(e) => onDragStart(e, task.id, status)}
-      className="cursor-move mb-3"
+      onDragStart={(e) => {
+        setIsDragging(true);
+        onDragStart(e, task.id, status);
+      }}
+      onDragEnd={() => setIsDragging(false)}
+      className={`cursor-move mb-3 transition-all ${isDragging ? 'opacity-50' : 'opacity-100'}`}
     >
       <TaskCard
         task={task}

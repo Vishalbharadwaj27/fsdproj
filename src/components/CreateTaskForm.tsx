@@ -1,30 +1,22 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import { Task, TaskStatus } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { userService, taskService } from "@/services/api";
+import { taskService } from "@/services/api";
 import { toast } from "sonner";
+
+// Import our new components
+import StatusSelector from "./task-form/StatusSelector";
+import PrioritySelector from "./task-form/PrioritySelector";
+import AssigneeSelector from "./task-form/AssigneeSelector";
+import DueDatePicker from "./task-form/DueDatePicker";
+import { useTaskForm } from "@/hooks/useTaskForm";
 
 const statusLabels: Record<TaskStatus, string> = {
   todo: "To Do",
@@ -45,64 +37,15 @@ export default function CreateTaskForm({
   onCreateTask,
   initialStatus = "todo"
 }: CreateTaskFormProps) {
-  const [formData, setFormData] = useState<Omit<Task, "id" | "createdAt" | "comments">>({
-    title: "",
-    description: "",
-    status: initialStatus,
-    assigneeId: null,
-    dueDate: null,
-    createdBy: "",
-    priority: "medium",
-    labels: []
-  });
-  
-  const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const { user } = useAuth();
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setIsLoadingUsers(true);
-      try {
-        const usersData = await userService.getUsers();
-        setUsers(usersData);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        toast.error("Failed to load users");
-      } finally {
-        setIsLoadingUsers(false);
-      }
-    };
-
-    if (open) {
-      fetchUsers();
-    }
-  }, [open]);
-
-  // Reset form when modal is opened/closed or initialStatus changes
-  useEffect(() => {
-    if (open) {
-      setFormData(prev => ({
-        ...prev,
-        title: "",
-        description: "",
-        status: initialStatus,
-        assigneeId: null,
-        dueDate: null,
-        createdBy: user?.id || "",
-        priority: "medium",
-        labels: []
-      }));
-    }
-  }, [open, initialStatus, user?.id]);
-
-  const handleChange = (field: keyof typeof formData, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const { 
+    formData, 
+    handleChange, 
+    users, 
+    isLoadingUsers, 
+    isSubmitting, 
+    setIsSubmitting 
+  } = useTaskForm({ initialStatus, open });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,102 +117,29 @@ export default function CreateTaskForm({
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="status" className="font-medium">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => handleChange('status', value as TaskStatus)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todo">To Do</SelectItem>
-                  <SelectItem value="inProgress">In Progress</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <StatusSelector 
+              value={formData.status}
+              onValueChange={(value) => handleChange('status', value)}
+            />
             
-            <div className="space-y-2">
-              <Label htmlFor="priority" className="font-medium">Priority</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value) => handleChange('priority', value as 'low' | 'medium' | 'high')}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <PrioritySelector
+              value={formData.priority}
+              onValueChange={(value) => handleChange('priority', value)}
+            />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="assignee" className="font-medium">
-                {isLoadingUsers ? 'Loading users...' : 'Assignee'}
-              </Label>
-              <Select 
-                value={formData.assigneeId || ""} 
-                onValueChange={(value) => handleChange('assigneeId', value || null)}
-                disabled={isLoadingUsers}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <AssigneeSelector
+              value={formData.assigneeId}
+              onValueChange={(value) => handleChange('assigneeId', value)}
+              users={users}
+              isLoading={isLoadingUsers}
+            />
             
-            <div className="space-y-2">
-              <Label className="font-medium block">Due Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.dueDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.dueDate ? format(formData.dueDate, "MMM d, yyyy") : "No date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={formData.dueDate || undefined}
-                    onSelect={(date) => handleChange('dueDate', date)}
-                    initialFocus
-                  />
-                  {formData.dueDate && (
-                    <div className="p-3 border-t flex justify-end">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleChange('dueDate', null)}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
-            </div>
+            <DueDatePicker
+              date={formData.dueDate}
+              onDateChange={(date) => handleChange('dueDate', date)}
+            />
           </div>
           
           <div className="flex justify-end space-x-3 pt-4">

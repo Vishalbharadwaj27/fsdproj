@@ -7,21 +7,31 @@ import CreateTaskForm from "@/components/CreateTaskForm";
 import { projectService } from "@/services/api";
 import { Project } from "@/lib/types";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { user } = useAuth();
+  
+  // Log user state
+  useEffect(() => {
+    console.log("Index: Current user", user);
+  }, [user]);
   
   useEffect(() => {
+    console.log("Index: Fetching project data");
     fetchProject();
   }, [refreshTrigger]);
 
   const fetchProject = async () => {
     setIsLoading(true);
     try {
+      console.log("Fetching project p1");
       const projectData = await projectService.getProject("p1");
+      console.log("Project data received:", projectData);
       setProject(projectData);
     } catch (error) {
       console.error("Error fetching project:", error);
@@ -32,12 +42,28 @@ const Index = () => {
   };
 
   const handleDataChange = () => {
+    console.log("Data change detected, refreshing...");
     setRefreshTrigger(prev => prev + 1); // Trigger a refresh
+  };
+
+  const handleCreateTask = async (taskData: any) => {
+    console.log("Creating task from Index page:", taskData);
+    try {
+      await taskData;
+      handleDataChange();
+      return Promise.resolve();
+    } catch (error) {
+      console.error("Error creating task:", error);
+      return Promise.reject(error);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header onCreateTask={() => setIsCreateModalOpen(true)} />
+      <Header onCreateTask={() => {
+        console.log("Opening create task modal");
+        setIsCreateModalOpen(true);
+      }} />
       
       <div className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
@@ -72,16 +98,11 @@ const Index = () => {
       
       <CreateTaskForm
         open={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreateTask={async (taskData) => {
-          try {
-            await taskData;
-            handleDataChange();
-            return Promise.resolve();
-          } catch (error) {
-            return Promise.reject(error);
-          }
+        onClose={() => {
+          console.log("Closing create task modal from Index page");
+          setIsCreateModalOpen(false);
         }}
+        onCreateTask={handleCreateTask}
         initialStatus="todo"
       />
     </div>

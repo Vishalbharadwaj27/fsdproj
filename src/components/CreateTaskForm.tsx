@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { Task, TaskStatus } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { userService } from "@/services/api";
+import { userService, taskService } from "@/services/api";
 import { toast } from "sonner";
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -114,12 +115,20 @@ export default function CreateTaskForm({
     setIsSubmitting(true);
     
     try {
-      await onCreateTask({
+      // Ensure createdBy is always set
+      const taskData = {
         ...formData,
         createdBy: user?.id || "1" // Default to user 1 if not logged in
-      });
+      };
+
+      await taskService.createTask(taskData);
       
       toast.success(`Task added to ${statusLabels[formData.status]}`);
+      
+      if (onCreateTask) {
+        await onCreateTask(taskData);
+      }
+      
       onClose();
     } catch (error) {
       console.error("Error creating task:", error);

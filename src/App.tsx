@@ -13,7 +13,16 @@ import Calendar from "./pages/Calendar";
 import Reports from "./pages/Reports";
 import Projects from "./pages/Projects";
 
-const queryClient = new QueryClient();
+// Create a query client with better error handling
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 30000,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

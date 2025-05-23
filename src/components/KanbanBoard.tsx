@@ -27,8 +27,14 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
   const [createForColumn, setCreateForColumn] = useState<TaskStatus>("todo");
   const { user } = useAuth();
 
+  // Debug auth state
+  useEffect(() => {
+    console.log("KanbanBoard: Current user", user);
+  }, [user]);
+
   // Fetch all tasks from MongoDB
   const fetchTasks = useCallback(async () => {
+    console.log("Fetching tasks...");
     setIsLoading(true);
     try {
       const [todoData, inProgressData, doneData] = await Promise.all([
@@ -36,6 +42,12 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
         taskService.getTasksByStatus("inProgress"),
         taskService.getTasksByStatus("done")
       ]);
+
+      console.log("Tasks fetched successfully:", { 
+        todo: todoData.length, 
+        inProgress: inProgressData.length, 
+        done: doneData.length 
+      });
 
       setTodoTasks(todoData);
       setInProgressTasks(inProgressData);
@@ -55,6 +67,7 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
 
   // Handle creating a new task
   const handleCreateTask = async (taskData: Omit<Task, "id" | "createdAt" | "comments">): Promise<void> => {
+    console.log("Creating new task:", taskData);
     try {
       // Ensure required fields are present
       const taskToCreate = {
@@ -64,6 +77,7 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
       };
       
       const newTask = await taskService.createTask(taskToCreate);
+      console.log("Task created:", newTask);
       
       // Update the appropriate state based on the task status
       const status = newTask.status;
@@ -253,6 +267,7 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
           task={task}
           onDelete={() => handleDeleteTask(task.id)}
           onEdit={() => {
+            console.log("Opening edit modal for task:", task);
             setCurrentTask(task);
             setIsEditModalOpen(true);
           }}
@@ -301,6 +316,7 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <span className="ml-3 text-gray-600">Loading tasks...</span>
       </div>
     );
   }
@@ -321,6 +337,7 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
       <CreateTaskForm
         open={isCreateModalOpen}
         onClose={() => {
+          console.log("Closing create task modal");
           setIsCreateModalOpen(false);
           // Reset the createForColumn to prevent stale state
           setTimeout(() => setCreateForColumn("todo"), 300);
@@ -333,7 +350,10 @@ const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => 
       <EditTaskForm
         task={currentTask}
         open={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={() => {
+          console.log("Closing edit task modal");
+          setIsEditModalOpen(false);
+        }}
         onUpdateTask={handleEditTask}
       />
     </div>

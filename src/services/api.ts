@@ -15,6 +15,7 @@ const handleError = (error: unknown, message: string) => {
 // Helper function for API requests
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   try {
+    console.log(`Making API request to: ${API_URL}${endpoint}`);
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
@@ -33,6 +34,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     return await response.json();
   } catch (error) {
+    console.error("API request failed:", error);
     handleError(error, "Failed to connect to server. Please try again later.");
     throw error;
   }
@@ -42,13 +44,15 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<User> => {
     try {
+      console.log("Attempting login with:", credentials.email);
       const { user } = await fetchAPI<{ success: boolean; user: User }>('/users/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       });
+      console.log("Login successful:", user);
       return user;
     } catch (error) {
-      handleError(error, "Login failed. Please try again.");
+      handleError(error, "Login failed. Please check your credentials and try again.");
       throw error;
     }
   },
@@ -84,6 +88,7 @@ export const taskService = {
       if (assigneeId) queryParams.append('assigneeId', assigneeId);
       
       const endpoint = `/tasks${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log(`Fetching tasks with params:`, { status, assigneeId });
       return await fetchAPI<Task[]>(endpoint);
     } catch (error) {
       handleError(error, "Failed to fetch tasks");
@@ -92,15 +97,19 @@ export const taskService = {
   },
   
   getTasksByStatus: async (status: string): Promise<Task[]> => {
+    console.log(`Fetching tasks by status: ${status}`);
     return taskService.getTasks(status);
   },
   
   createTask: async (task: Omit<Task, "id" | "createdAt" | "comments">): Promise<Task> => {
     try {
-      return await fetchAPI<Task>('/tasks', {
+      console.log("Creating new task:", task);
+      const result = await fetchAPI<Task>('/tasks', {
         method: 'POST',
         body: JSON.stringify(task),
       });
+      console.log("Task created successfully:", result);
+      return result;
     } catch (error) {
       handleError(error, "Failed to create task");
       throw error;
@@ -109,10 +118,13 @@ export const taskService = {
   
   updateTask: async (task: Task): Promise<Task> => {
     try {
-      return await fetchAPI<Task>(`/tasks/${task.id}`, {
+      console.log(`Updating task ${task.id}:`, task);
+      const result = await fetchAPI<Task>(`/tasks/${task.id}`, {
         method: 'PUT',
         body: JSON.stringify(task),
       });
+      console.log("Task updated successfully:", result);
+      return result;
     } catch (error) {
       handleError(error, "Failed to update task");
       throw error;
@@ -121,9 +133,11 @@ export const taskService = {
   
   deleteTask: async (taskId: string): Promise<void> => {
     try {
+      console.log(`Deleting task: ${taskId}`);
       await fetchAPI<{ message: string }>(`/tasks/${taskId}`, {
         method: 'DELETE',
       });
+      console.log("Task deleted successfully");
     } catch (error) {
       handleError(error, "Failed to delete task");
       throw error;
@@ -132,10 +146,13 @@ export const taskService = {
   
   addComment: async (taskId: string, userId: string, content: string): Promise<Comment> => {
     try {
-      return await fetchAPI<Comment>(`/tasks/${taskId}/comments`, {
+      console.log(`Adding comment to task ${taskId} by user ${userId}`);
+      const result = await fetchAPI<Comment>(`/tasks/${taskId}/comments`, {
         method: 'POST',
         body: JSON.stringify({ userId, content }),
       });
+      console.log("Comment added successfully");
+      return result;
     } catch (error) {
       handleError(error, "Failed to add comment");
       throw error;
@@ -147,6 +164,7 @@ export const taskService = {
 export const projectService = {
   getProject: async (projectId: string): Promise<Project> => {
     try {
+      console.log(`Fetching project: ${projectId}`);
       return await fetchAPI<Project>(`/projects/${projectId}`);
     } catch (error) {
       handleError(error, "Failed to fetch project");
@@ -163,6 +181,7 @@ export const activityService = {
       if (limit) queryParams.append('limit', limit.toString());
       
       const endpoint = `/activities${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log(`Fetching activities with limit: ${limit || 'none'}`);
       return await fetchAPI<Activity[]>(endpoint);
     } catch (error) {
       handleError(error, "Failed to fetch activities");

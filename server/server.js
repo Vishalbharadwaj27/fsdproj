@@ -18,6 +18,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Debug middleware to log requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // MongoDB Connection URL
 const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/";
 const client = new MongoClient(uri);
@@ -25,8 +31,9 @@ let db;
 
 async function connectToMongoDB() {
   try {
+    console.log("Attempting to connect to MongoDB at:", uri);
     await client.connect();
-    console.log("Connected to MongoDB");
+    console.log("Connected to MongoDB successfully");
     db = client.db("projectfsd");
     
     // Create indexes for frequently accessed fields
@@ -34,6 +41,7 @@ async function connectToMongoDB() {
     await db.collection('kanban').createIndex({ assigneeId: 1 });
     await db.collection('users').createIndex({ email: 1 });
     await db.collection('activities').createIndex({ createdAt: -1 });
+    console.log("Database indexes created successfully");
 
     return true;
   } catch (error) {
@@ -48,9 +56,10 @@ async function connectToMongoDB() {
   let retries = 5;
   
   while (!connected && retries > 0) {
+    console.log(`Connection attempt ${6-retries} of 5`);
     connected = await connectToMongoDB();
     if (!connected) {
-      console.log(`Retrying connection... (${retries} attempts left)`);
+      console.log(`Retrying connection in 3 seconds... (${retries} attempts left)`);
       retries--;
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
@@ -105,10 +114,16 @@ async function connectToMongoDB() {
 
 // API Routes
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date() });
+});
+
 // Users
 app.get('/api/users', async (req, res) => {
   try {
     const users = await db.collection('users').find().toArray();
+    console.log(`Retrieved ${users.length} users`);
     res.json(users);
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -119,10 +134,13 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/users/login', async (req, res) => {
   const { email, password } = req.body;
   
+  console.log(`Login attempt for: ${email}`);
+  
   try {
     let user = await db.collection('users').findOne({ email });
     
     if (!user) {
+      console.log(`User not found, creating new user for: ${email}`);
       user = {
         id: new ObjectId().toString(),
         name: email.split("@")[0],
@@ -132,6 +150,9 @@ app.post('/api/users/login', async (req, res) => {
       };
       
       await db.collection('users').insertOne(user);
+      console.log(`New user created with ID: ${user.id}`);
+    } else {
+      console.log(`User found: ${user.id}, ${user.name}`);
     }
     
     res.json({ success: true, user });
@@ -143,10 +164,13 @@ app.post('/api/users/login', async (req, res) => {
 
 app.get('/api/users/:id', async (req, res) => {
   try {
+    console.log(`Fetching user with ID: ${req.params.id}`);
     const user = await db.collection('users').findOne({ id: req.params.id });
     if (!user) {
+      console.log(`User not found with ID: ${req.params.id}`);
       return res.status(404).json({ message: "User not found" });
     }
+    console.log(`User found: ${user.name}`);
     res.json(user);
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -164,7 +188,10 @@ app.get('/api/tasks', async (req, res) => {
     if (status) query.status = status;
     if (assigneeId) query.assigneeId = assigneeId;
     
+    console.log('Query params:', { status, assigneeId });
+    
     const tasks = await db.collection('kanban').find(query).toArray();
+    console.log(`Retrieved ${tasks.length} tasks with query:`, query);
     res.json(tasks);
   } catch (error) {
     console.error("Error fetching tasks:", error);
@@ -174,6 +201,7 @@ app.get('/api/tasks', async (req, res) => {
 
 app.post('/api/tasks', async (req, res) => {
   try {
+    console.log(`Creating new task: ${req.body.title}`);
     const newTask = {
       ...req.body,
       id: new ObjectId().toString(),
@@ -181,7 +209,8 @@ app.post('/api/tasks', async (req, res) => {
       comments: []
     };
     
-    await db.collection('kanban').insertOne(newTask);
+    const result = await db.collection('kanban').insertOne(newTask);
+    console.log(`Task created with ID: ${newTask.id}`);
     
     // Log activity
     const activity = {
@@ -193,6 +222,7 @@ app.post('/api/tasks', async (req, res) => {
       createdAt: new Date()
     };
     await db.collection('activities').insertOne(activity);
+    console.log(`Activity logged for task creation`);
     
     res.status(201).json(newTask);
   } catch (error) {
@@ -349,6 +379,7 @@ app.get('/api/projects/:id', async (req, res) => {
 // Start the server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log(`API available at http://localhost:${port}/api`);
 });
 
 // Handle graceful shutdown

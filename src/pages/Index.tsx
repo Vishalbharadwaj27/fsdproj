@@ -16,7 +16,7 @@ const Index = () => {
   
   useEffect(() => {
     fetchProject();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchProject = async () => {
     setIsLoading(true);

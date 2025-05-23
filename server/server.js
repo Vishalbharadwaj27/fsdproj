@@ -60,6 +60,47 @@ async function connectToMongoDB() {
     console.error("Failed to connect to MongoDB after multiple attempts");
     process.exit(1);
   }
+
+  // Initialize database with some seed data if empty
+  const usersCount = await db.collection('users').countDocuments();
+  if (usersCount === 0) {
+    console.log("Initializing database with seed data...");
+    
+    // Seed users
+    const users = [
+      { 
+        id: "1", 
+        name: "Alex Johnson", 
+        email: "alex@example.com", 
+        avatar: "https://i.pravatar.cc/150?img=1",
+        role: "admin" 
+      },
+      { 
+        id: "2", 
+        name: "Sarah Miller", 
+        email: "sarah@example.com", 
+        avatar: "https://i.pravatar.cc/150?img=2",
+        role: "manager" 
+      },
+      { 
+        id: "3", 
+        name: "David Kim", 
+        email: "david@example.com", 
+        avatar: "https://i.pravatar.cc/150?img=3",
+        role: "member" 
+      },
+      { 
+        id: "4", 
+        name: "Emily Chen", 
+        email: "emily@example.com", 
+        avatar: "https://i.pravatar.cc/150?img=4",
+        role: "member" 
+      }
+    ];
+    
+    await db.collection('users').insertMany(users);
+    console.log("Users seeded successfully");
+  }
 })();
 
 // API Routes

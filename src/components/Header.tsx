@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, NavLink } from "react-router-dom";
 
 interface HeaderProps {
   onCreateTask?: () => void;
@@ -22,13 +22,51 @@ export default function Header({ onCreateTask }: HeaderProps) {
     <header className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <div className="flex items-center">
-          <h1 className="text-xl font-bold text-primary mr-6">Kanban</h1>
+          <h1 className="text-xl font-bold text-primary mr-6">
+            <NavLink to="/">Kanban</NavLink>
+          </h1>
           
           <nav className="hidden md:flex space-x-4">
-            <a href="#" className="text-sm font-medium text-gray-800">Dashboard</a>
-            <a href="#" className="text-sm font-medium text-gray-500 hover:text-gray-800">Projects</a>
-            <a href="#" className="text-sm font-medium text-gray-500 hover:text-gray-800">Calendar</a>
-            <a href="#" className="text-sm font-medium text-gray-500 hover:text-gray-800">Reports</a>
+            <NavLink 
+              to="/" 
+              className={({ isActive }) => 
+                isActive 
+                  ? "text-sm font-medium text-gray-800" 
+                  : "text-sm font-medium text-gray-500 hover:text-gray-800"
+              }
+            >
+              Dashboard
+            </NavLink>
+            <NavLink 
+              to="/projects" 
+              className={({ isActive }) => 
+                isActive 
+                  ? "text-sm font-medium text-gray-800" 
+                  : "text-sm font-medium text-gray-500 hover:text-gray-800"
+              }
+            >
+              Projects
+            </NavLink>
+            <NavLink 
+              to="/calendar" 
+              className={({ isActive }) => 
+                isActive 
+                  ? "text-sm font-medium text-gray-800" 
+                  : "text-sm font-medium text-gray-500 hover:text-gray-800"
+              }
+            >
+              Calendar
+            </NavLink>
+            <NavLink 
+              to="/reports" 
+              className={({ isActive }) => 
+                isActive 
+                  ? "text-sm font-medium text-gray-800" 
+                  : "text-sm font-medium text-gray-500 hover:text-gray-800"
+              }
+            >
+              Reports
+            </NavLink>
           </nav>
         </div>
         

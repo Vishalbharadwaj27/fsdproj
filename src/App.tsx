@@ -9,6 +9,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import Calendar from "./pages/Calendar";
+import Reports from "./pages/Reports";
+import Projects from "./pages/Projects";
 
 const queryClient = new QueryClient();
 
@@ -26,7 +29,21 @@ const App = () => (
                 <Index />
               </ProtectedRoute>
             } />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/calendar" element={
+              <ProtectedRoute>
+                <Calendar />
+              </ProtectedRoute>
+            } />
+            <Route path="/reports" element={
+              <ProtectedRoute>
+                <Reports />
+              </ProtectedRoute>
+            } />
+            <Route path="/projects" element={
+              <ProtectedRoute>
+                <Projects />
+              </ProtectedRoute>
+            } />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

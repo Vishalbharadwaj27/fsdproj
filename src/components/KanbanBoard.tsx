@@ -1,5 +1,5 @@
+
 import { useState, useEffect, useCallback } from "react";
-import { DragEvent } from "react";
 import { Task } from "@/lib/types";
 import { taskService } from "@/services/api";
 import TaskCard from "./TaskCard";
@@ -11,7 +11,12 @@ import { useAuth } from "@/contexts/AuthContext";
 
 type TaskStatus = "todo" | "inProgress" | "done";
 
-const KanbanBoard = () => {
+interface KanbanBoardProps {
+  refreshTrigger?: number;
+  onDataChange?: () => void;
+}
+
+const KanbanBoard = ({ refreshTrigger = 0, onDataChange }: KanbanBoardProps) => {
   const [todoTasks, setTodoTasks] = useState<Task[]>([]);
   const [inProgressTasks, setInProgressTasks] = useState<Task[]>([]);
   const [doneTasks, setDoneTasks] = useState<Task[]>([]);
@@ -20,9 +25,6 @@ const KanbanBoard = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [createForColumn, setCreateForColumn] = useState<TaskStatus>("todo");
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
   const { user } = useAuth();
 
   // Fetch all tasks from MongoDB
@@ -48,51 +50,24 @@ const KanbanBoard = () => {
 
   // Fetch tasks on component mount or when refreshTrigger changes
   useEffect(() => {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    
-    const fetchData = async () => {
-      try {
-        await fetchTasks();
-      } catch (error) {
-        if (!signal.aborted) {
-          console.error("Error fetching tasks:", error);
-        }
-      }
-    };
-    
-    fetchData();
-    
-    return () => {
-      controller.abort();
-    };
-  }, [refreshTrigger, fetchTasks]); // Include fetchTasks in dependencies
+    fetchTasks();
+  }, [refreshTrigger, fetchTasks]);
 
   // Handle creating a new task
   const handleCreateTask = async (taskData: Omit<Task, "id" | "createdAt" | "comments">): Promise<void> => {
-    console.log("Starting task creation with data:", taskData);
-    console.log("Current createForColumn:", createForColumn);
-    
     try {
       // Ensure required fields are present
       const taskToCreate = {
         ...taskData,
         createdBy: user?.id || "1", // Fallback to default user if not authenticated
-        labels: taskData.labels || [],
-        priority: taskData.priority || "medium",
         status: taskData.status || createForColumn // Use the column's status if not provided
       };
-
-      console.log("Sending to API:", taskToCreate);
       
       const newTask = await taskService.createTask(taskToCreate);
-      console.log("API Response - Created task:", newTask);
-
-      // Update the appropriate state based on the task status
-      const status = newTask.status || taskToCreate.status;
-      console.log("Adding task to status:", status);
       
       // Update the appropriate state based on the task status
+      const status = newTask.status;
+      
       switch (status) {
         case "todo":
           setTodoTasks(prev => [...prev, newTask]);
@@ -109,10 +84,12 @@ const KanbanBoard = () => {
       setIsCreateModalOpen(false);
       
       // Show success message
-      toast.success(`Task added to ${status.charAt(0).toUpperCase() + status.slice(1)}`);
+      toast.success(`Task added to ${status === "todo" ? "To Do" : status === "inProgress" ? "In Progress" : "Done"}`);
       
-      // Force a refetch of all tasks to ensure consistency
-      setRefreshTrigger(prev => prev + 1);
+      // Notify parent component about data change
+      if (onDataChange) {
+        onDataChange();
+      }
       
       return Promise.resolve();
     } catch (error) {
@@ -123,17 +100,10 @@ const KanbanBoard = () => {
   };
 
   // Handle drag start
-  const handleDragStart = useCallback((e: React.DragEvent, taskId: string, status: string) => {
-    const task = todoTasks.find((t) => t.id === taskId) ||
-      inProgressTasks.find((t) => t.id === taskId) ||
-      doneTasks.find((t) => t.id === taskId);
-
-    if (task) {
-      setActiveTask(task);
-      e.dataTransfer.setData("taskId", taskId);
-      e.dataTransfer.setData("status", status);
-    }
-  }, [todoTasks, inProgressTasks, doneTasks]);
+  const handleDragStart = (e: React.DragEvent, taskId: string, status: string) => {
+    e.dataTransfer.setData("taskId", taskId);
+    e.dataTransfer.setData("status", status);
+  };
 
   // Handle editing a task
   const handleEditTask = async (updatedTask: Task) => {
@@ -164,6 +134,11 @@ const KanbanBoard = () => {
       toast.success("Task updated successfully");
       setIsEditModalOpen(false);
       setCurrentTask(null);
+      
+      // Notify parent component about data change
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error("Failed to update task");
@@ -172,6 +147,8 @@ const KanbanBoard = () => {
 
   // Handle deleting a task
   const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Are you sure you want to delete this task?")) return;
+    
     try {
       await taskService.deleteTask(taskId);
       
@@ -181,6 +158,11 @@ const KanbanBoard = () => {
       setDoneTasks(prev => prev.filter(task => task.id !== taskId));
       
       toast.success("Task deleted successfully");
+      
+      // Notify parent component about data change
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task");
@@ -235,6 +217,11 @@ const KanbanBoard = () => {
           newStatus === "inProgress" ? "In Progress" : "Done"
         }`
       );
+      
+      // Notify parent component about data change
+      if (onDataChange) {
+        onDataChange();
+      }
     } catch (error) {
       console.error("Error moving task:", error);
       toast.error("Failed to move task");
@@ -260,15 +247,15 @@ const KanbanBoard = () => {
         key={task.id}
         draggable
         onDragStart={(e) => handleDragStart(e, task.id, status)}
-        onClick={() => {
-          setCurrentTask(task);
-          setIsEditModalOpen(true);
-        }}
         className="cursor-move mb-3"
       >
         <TaskCard
           task={task}
           onDelete={() => handleDeleteTask(task.id)}
+          onEdit={() => {
+            setCurrentTask(task);
+            setIsEditModalOpen(true);
+          }}
         />
       </div>
     ));
@@ -332,21 +319,13 @@ const KanbanBoard = () => {
 
       {/* Create Task Modal */}
       <CreateTaskForm
-        key={`create-task-${createForColumn}-${isCreateModalOpen}`}
         open={isCreateModalOpen}
         onClose={() => {
           setIsCreateModalOpen(false);
           // Reset the createForColumn to prevent stale state
           setTimeout(() => setCreateForColumn("todo"), 300);
         }}
-        onCreateTask={async (taskData) => {
-          try {
-            await handleCreateTask(taskData);
-            return Promise.resolve();
-          } catch (error) {
-            return Promise.reject(error);
-          }
-        }}
+        onCreateTask={handleCreateTask}
         initialStatus={createForColumn}
       />
       

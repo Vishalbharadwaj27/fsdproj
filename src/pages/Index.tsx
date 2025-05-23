@@ -4,8 +4,8 @@ import KanbanBoard from "@/components/KanbanBoard";
 import Header from "@/components/Header";
 import ActivityLog from "@/components/ActivityLog";
 import CreateTaskForm from "@/components/CreateTaskForm";
-import { projectService, taskService } from "@/services/api";
-import { Project, Task } from "@/lib/types";
+import { projectService } from "@/services/api";
+import { Project } from "@/lib/types";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -16,7 +16,7 @@ const Index = () => {
   
   useEffect(() => {
     fetchProject();
-  }, [refreshTrigger]);
+  }, []);
 
   const fetchProject = async () => {
     setIsLoading(true);
@@ -31,16 +31,8 @@ const Index = () => {
     }
   };
 
-  const handleCreateTask = async (task: Omit<Task, "id" | "createdAt" | "comments">) => {
-    try {
-      await taskService.createTask(task);
-      setIsCreateModalOpen(false);
-      setRefreshTrigger(prev => prev + 1); // Trigger a refresh after creating task
-      toast.success("Task created successfully");
-    } catch (error) {
-      console.error("Error creating task:", error);
-      toast.error("Failed to create task");
-    }
+  const handleDataChange = () => {
+    setRefreshTrigger(prev => prev + 1); // Trigger a refresh
   };
 
   return (
@@ -66,7 +58,10 @@ const Index = () => {
         
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-grow order-2 md:order-1">
-            <KanbanBoard refreshTrigger={refreshTrigger} onDataChange={() => setRefreshTrigger(prev => prev + 1)} />
+            <KanbanBoard 
+              refreshTrigger={refreshTrigger} 
+              onDataChange={handleDataChange} 
+            />
           </div>
           
           <div className="w-full md:w-80 flex-shrink-0 order-1 md:order-2">
@@ -78,7 +73,15 @@ const Index = () => {
       <CreateTaskForm
         open={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreateTask={handleCreateTask}
+        onCreateTask={async (taskData) => {
+          try {
+            await taskData;
+            handleDataChange();
+            return Promise.resolve();
+          } catch (error) {
+            return Promise.reject(error);
+          }
+        }}
         initialStatus="todo"
       />
     </div>

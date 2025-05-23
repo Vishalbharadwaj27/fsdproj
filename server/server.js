@@ -1,3 +1,4 @@
+
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
@@ -166,6 +167,10 @@ app.put('/api/tasks/:id', async (req, res) => {
     
     // Get old task for activity logging
     const oldTask = await db.collection('kanban').findOne({ id: taskId });
+    
+    if (!oldTask) {
+      return res.status(404).json({ message: "Task not found" });
+    }
     
     await db.collection('kanban').updateOne(
       { id: taskId },

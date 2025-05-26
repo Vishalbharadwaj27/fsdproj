@@ -7,7 +7,7 @@ import CreateTaskForm from "@/components/CreateTaskForm";
 import { projectService } from "@/services/api";
 import { Project } from "@/lib/types";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/features/auth/context/AuthContext";
 
 const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

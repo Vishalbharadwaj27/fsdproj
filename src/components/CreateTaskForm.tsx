@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { Task, TaskStatus } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/features/auth/context/AuthContext";
 import { taskService } from "@/services/api";
 import { toast } from "sonner";
 
@@ -27,7 +27,7 @@ const statusLabels: Record<TaskStatus, string> = {
 interface CreateTaskFormProps {
   open: boolean;
   onClose: () => void;
-  onCreateTask: (task: Omit<Task, "id" | "createdAt" | "comments">) => Promise<void>;
+  onCreateTask: (task: Omit<Task, "id" | "createdAt" | "comments">) => Promise<Task | void>;
   initialStatus: TaskStatus;
 }
 
@@ -37,15 +37,46 @@ export default function CreateTaskForm({
   onCreateTask,
   initialStatus = "todo"
 }: CreateTaskFormProps) {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { 
     formData, 
+    setFormData, 
     handleChange, 
+    resetForm, 
     users, 
     isLoadingUsers, 
     isSubmitting, 
     setIsSubmitting 
-  } = useTaskForm({ initialStatus, open });
+  } = useTaskForm({ 
+    initialStatus,
+    open 
+  });
+
+  if (isAuthLoading) {
+    return (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-20 bg-gray-100 rounded animate-pulse"></div>
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <div className="h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-24 bg-blue-500 rounded animate-pulse"></div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,24 +89,39 @@ export default function CreateTaskForm({
     setIsSubmitting(true);
     
     try {
-      // Ensure createdBy is always set
+      // Create the task data with all required fields
       const taskData = {
         ...formData,
-        createdBy: user?.id || "1" // Default to user 1 if not logged in
+        title: formData.title.trim(),
+        description: formData.description?.trim() || "",
+        status: formData.status || initialStatus,
+        dueDate: formData.dueDate || new Date(),
+        priority: formData.priority || "medium",
+        labels: formData.labels || [],
+        createdBy: user?.id || "1",
+        assigneeId: formData.assigneeId || user?.id || "1"
       };
 
-      await taskService.createTask(taskData);
+      // Call the parent's onCreateTask with the complete task data
+      const result = await onCreateTask(taskData);
       
-      toast.success(`Task added to ${statusLabels[formData.status]}`);
+      // If we got here, the task was created successfully
+      resetForm();
+      onClose();
       
-      if (onCreateTask) {
-        await onCreateTask(taskData);
+      // Only show success message if the parent didn't throw an error
+      if (result) {
+        toast.success(`Task added to ${statusLabels[result.status as TaskStatus] || 'the board'}`);
       }
       
-      onClose();
+      return result;
     } catch (error) {
       console.error("Error creating task:", error);
-      toast.error("Failed to create task. Please try again.");
+      // Only show error toast if the error wasn't handled by the parent
+      if (!(error instanceof Error && error.message === 'Task creation handled by parent')) {
+        toast.error("Failed to create task. Please try again.");
+      }
+      throw error;
     } finally {
       setIsSubmitting(false);
     }
@@ -83,11 +129,18 @@ export default function CreateTaskForm({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[500px]" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent 
+        className="sm:max-w-[500px]" 
+        onInteractOutside={(e) => e.preventDefault()}
+        aria-describedby="create-task-description"
+      >
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             Add New Task to {statusLabels[formData.status]}
           </DialogTitle>
+          <p id="create-task-description" className="sr-only">
+            Fill out the form to create a new task
+          </p>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -130,8 +183,8 @@ export default function CreateTaskForm({
           
           <div className="grid grid-cols-2 gap-4">
             <AssigneeSelector
-              value={formData.assigneeId}
-              onValueChange={(value) => handleChange('assigneeId', value)}
+              value={formData.assigneeId || "unassigned"}
+              onValueChange={(value) => handleChange('assigneeId', value === "unassigned" ? null : value)}
               users={users}
               isLoading={isLoadingUsers}
             />

@@ -34,15 +34,15 @@ export default function AssigneeSelector({
         {isLoading ? 'Loading users...' : 'Assignee'}
       </Label>
       <Select 
-        value={value || ""} 
-        onValueChange={(value) => onValueChange(value || null)}
+        value={value || "unassigned"} 
+        onValueChange={(value) => onValueChange(value === "unassigned" ? null : value)}
         disabled={isLoading || disabled}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="Unassigned" />
+          <SelectValue placeholder="Select assignee" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Unassigned</SelectItem>
+          <SelectItem value="unassigned">Unassigned</SelectItem>
           {users.map((user) => (
             <SelectItem key={user.id} value={user.id}>
               {user.name}

@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { PlusCircle, LogOut } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/features/auth/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useNavigate, NavLink } from "react-router-dom";
 
@@ -10,13 +10,24 @@ interface HeaderProps {
 }
 
 export default function Header({ onCreateTask }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
+
+  if (isLoading) {
+    return (
+      <header className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse"></div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="bg-white shadow-sm border-b">
